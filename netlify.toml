@@ -1,0 +1,7 @@
+[build]
+  publish = "."
+
+[[redirects]]
+  from = "/api/ai-import"
+  to = "/.netlify/functions/ai-import"
+  status = 200
