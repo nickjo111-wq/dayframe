@@ -1,7 +1,7 @@
 // DayFrame Service Worker
 // Cache-first for app shell, network-first for everything else
 
-const CACHE_NAME   = 'dayframe-v3';
+const CACHE_NAME = 'dayframe-v5';
 const APP_SHELL    = ['/', '/index.html', '/manifest.json', '/icons/icon-192.png', '/icons/icon-512.png'];
 
 // ── Install: pre-cache app shell ──────────────────────
