@@ -55,7 +55,7 @@ exports.handler = async (event) => {
         'Content-Type':      'application/json',
         'x-api-key':         apiKey,
         'anthropic-version': '2023-06-01',
-        'anthropic-beta':    'web-search-2025-03-05'
+        'anthropic-beta':    'web-search-20250305'
       },
       event.body
     );
