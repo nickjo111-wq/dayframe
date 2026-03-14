@@ -12,6 +12,7 @@
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <title>DayFrame</title>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Barlow+Condensed:wght@300;400;500;600;700&family=Barlow:wght@300;400;500&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   :root {
     --bg: #080808;
@@ -1255,11 +1256,107 @@
     font-family:'JetBrains Mono',monospace; font-size:10px;
     color:var(--text3); margin-top:3px;
   }
+  /* ── Auth Overlay ──────────────────────────────── */
+  #auth-overlay {
+    position:fixed; inset:0; z-index:9999;
+    background:#080808;
+    display:flex; align-items:center; justify-content:center;
+    padding:20px;
+  }
+  #auth-overlay.hidden { display:none; }
+  #auth-box {
+    width:100%; max-width:380px;
+    text-align:center;
+  }
+  #auth-logo {
+    font-family:'Playfair Display',serif;
+    font-size:32px; font-weight:700;
+    color:var(--gold); letter-spacing:0.02em;
+    margin-bottom:6px;
+  }
+  #auth-sub {
+    font-family:'Barlow Condensed',sans-serif;
+    font-size:12px; letter-spacing:0.2em;
+    text-transform:uppercase; color:var(--text3);
+    margin-bottom:32px;
+  }
+  #auth-tagline {
+    font-family:'Barlow',sans-serif; font-size:14px;
+    color:var(--text2); margin-bottom:28px; line-height:1.5;
+  }
+  #auth-email {
+    width:100%; box-sizing:border-box;
+    padding:12px 16px; background:var(--surface2);
+    border:1px solid var(--border2); border-radius:6px;
+    color:var(--text); font-family:'Barlow',sans-serif;
+    font-size:14px; outline:none; margin-bottom:10px;
+    transition:border-color 0.15s;
+  }
+  #auth-email:focus { border-color:var(--gold-dim); }
+  #auth-submit-btn {
+    width:100%; padding:13px;
+    background:var(--gold); border:none; border-radius:6px;
+    color:#000; font-family:'Barlow Condensed',sans-serif;
+    font-size:14px; font-weight:700; letter-spacing:0.1em;
+    cursor:pointer; transition:background 0.15s; margin-bottom:10px;
+  }
+  #auth-submit-btn:hover { background:#d4b450; }
+  #auth-submit-btn:disabled { opacity:0.5; cursor:not-allowed; }
+  #auth-message {
+    padding:10px 14px; border-radius:5px;
+    font-family:'Barlow',sans-serif; font-size:13px;
+    line-height:1.5; margin-bottom:10px;
+  }
+  #auth-message.success { background:#1a3d1a; color:#4e8f6e; border:1px solid #2a5a2a; }
+  #auth-message.error   { background:var(--red-bg); color:#e05a5a; border:1px solid #5a2020; }
+  #auth-skip { margin-top:16px; }
+  #auth-skip-btn {
+    background:none; border:none; cursor:pointer;
+    font-family:'Barlow Condensed',sans-serif; font-size:12px;
+    letter-spacing:0.08em; color:var(--text3);
+    transition:color 0.15s; text-decoration:underline;
+  }
+  #auth-skip-btn:hover { color:var(--text2); }
+
+  /* User indicator in topbar */
+  #user-indicator {
+    display:flex; align-items:center; gap:6px;
+  }
+  #user-email-display {
+    font-family:'Barlow Condensed',sans-serif; font-size:11px;
+    color:var(--text3); letter-spacing:0.06em;
+    max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  }
+  #sign-out-btn {
+    background:none; border:1px solid var(--border);
+    border-radius:4px; color:var(--text3); cursor:pointer;
+    font-size:13px; padding:4px 8px; transition:all 0.15s;
+  }
+  #sign-out-btn:hover { border-color:var(--border2); color:var(--text2); }
+  #sign-in-btn {
+    padding:5px 12px; background:none;
+    border:1px solid var(--gold-dim); border-radius:4px;
+    color:var(--gold); font-family:'Barlow Condensed',sans-serif;
+    font-size:11px; font-weight:600; letter-spacing:0.1em;
+    cursor:pointer; transition:all 0.15s;
+  }
+  #sign-in-btn:hover { background:var(--gold-glow); }
+
   /* Desktop: hide mobile-only elements */
   @media (min-width: 769px) {
     #mobile-nav { display: none; }
     #mobile-topbar-actions { display: none; }
   }
+    position:fixed; bottom:80px; right:16px;
+    font-family:'Barlow Condensed',sans-serif; font-size:11px;
+    letter-spacing:0.08em; padding:5px 10px;
+    background:var(--surface); border:1px solid var(--border);
+    border-radius:4px; color:var(--text3);
+    opacity:0; transition:opacity 0.3s; pointer-events:none;
+    z-index:100;
+  }
+  #sync-indicator.show { opacity:1; }
+  #sync-indicator.saved { color:var(--green); border-color:#2a5a2a; }
 
   /* ── Recurrence UI ─────────────────────────────── */
   .recur-toggle-row {
@@ -1323,6 +1420,23 @@
 </style>
 </head>
 <body>
+
+<!-- Auth Overlay -->
+<div id="auth-overlay">
+  <div id="auth-box">
+    <div id="auth-logo">◈ DayFrame</div>
+    <div id="auth-sub">Time Box Planner</div>
+    <div id="auth-tagline">Sign in to sync your data across all devices</div>
+    <div id="auth-form">
+      <input type="email" id="auth-email" placeholder="your@email.com" />
+      <button id="auth-submit-btn">Send Magic Link</button>
+      <div id="auth-message" style="display:none"></div>
+    </div>
+    <div id="auth-skip">
+      <button id="auth-skip-btn">Continue without signing in</button>
+    </div>
+  </div>
+</div>
 
 <div id="app">
 
@@ -1405,6 +1519,11 @@
       <button id="notes-btn">📝 Notes</button>
       <button id="search-btn">🔍 Search</button>
       <button id="ai-import-btn">✦ AI Import</button>
+      <div id="user-indicator" style="display:none">
+        <span id="user-email-display"></span>
+        <button id="sign-out-btn" title="Sign out">↪</button>
+      </div>
+      <button id="sign-in-btn" style="display:none">Sign In</button>
       <!-- Mobile-only quick buttons -->
       <div id="mobile-topbar-actions">
         <button class="mob-top-btn" id="mob-today-btn" title="Today">◎</button>
@@ -1866,10 +1985,178 @@
   </div>
 </div>
 
+<div id="sync-indicator"></div>
 <!-- Toast -->
 <div id="toast"></div>
 
 <script>
+// ═══════════════════════════════════════════════════
+//  SUPABASE
+// ═══════════════════════════════════════════════════
+const SUPABASE_URL  = 'https://ddoqmfmoqpmvowbkphm.supabase.co';
+const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRkb3FtcWZtb3FwbXZvd2JrcGhtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM1MTU5ODQsImV4cCI6MjA4OTA5MTk4NH0.KX_jyLr-p47P9tt2j1qtC3NFseeTB2YJl-e_6tEfKHs';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+
+let CURRENT_USER = null;
+let syncTimer    = null;
+
+// Show/hide sync indicator
+function showSync(msg, type='') {
+  const el = document.getElementById('sync-indicator');
+  el.textContent = msg;
+  el.className = 'show' + (type ? ' '+type : '');
+  clearTimeout(window._syncIndicatorTimer);
+  window._syncIndicatorTimer = setTimeout(() => { el.className = ''; }, 2500);
+}
+
+// Save data to Supabase (debounced)
+async function syncToSupabase() {
+  if (!CURRENT_USER) return;
+  clearTimeout(syncTimer);
+  syncTimer = setTimeout(async () => {
+    showSync('Syncing…');
+    try {
+      const { error } = await sb.from('user_data').upsert({
+        user_id:    CURRENT_USER.id,
+        data:       APP.data,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'user_id' });
+      if (error) throw error;
+      showSync('✓ Saved', 'saved');
+    } catch(e) {
+      showSync('Sync failed', '');
+      console.error('Sync error:', e);
+    }
+  }, 1500);
+}
+
+// Load data from Supabase
+async function loadFromSupabase() {
+  if (!CURRENT_USER) return null;
+  try {
+    const { data, error } = await sb.from('user_data')
+      .select('data')
+      .eq('user_id', CURRENT_USER.id)
+      .single();
+    if (error && error.code !== 'PGRST116') throw error;
+    return data?.data || null;
+  } catch(e) {
+    console.error('Load error:', e);
+    return null;
+  }
+}
+
+// Update topbar user UI
+function updateUserUI() {
+  const indicator = document.getElementById('user-indicator');
+  const signInBtn = document.getElementById('sign-in-btn');
+  const emailEl   = document.getElementById('user-email-display');
+  if (CURRENT_USER) {
+    indicator.style.display = 'flex';
+    signInBtn.style.display = 'none';
+    emailEl.textContent = CURRENT_USER.email;
+  } else {
+    indicator.style.display = 'none';
+    signInBtn.style.display = '';
+  }
+}
+
+// Init auth
+async function initSupabase() {
+  // Listen for auth state changes
+  sb.auth.onAuthStateChange(async (event, session) => {
+    CURRENT_USER = session?.user || null;
+    updateUserUI();
+
+    if (event === 'SIGNED_IN') {
+      document.getElementById('auth-overlay').classList.add('hidden');
+      showSync('Loading your data…');
+      const cloudData = await loadFromSupabase();
+      if (cloudData) {
+        // Merge: prefer cloud data but keep local if cloud is empty
+        if (!cloudData.dayTypeConfigs) cloudData.dayTypeConfigs = {};
+        if (!cloudData.projects)       cloudData.projects = [];
+        APP.data = cloudData;
+        saveData(); // update localStorage cache
+        renderAll();
+      }
+      showSync('✓ Synced', 'saved');
+    }
+
+    if (event === 'SIGNED_OUT') {
+      updateUserUI();
+    }
+  });
+
+  // Check existing session
+  const { data: { session } } = await sb.auth.getSession();
+  if (session?.user) {
+    CURRENT_USER = session.user;
+    updateUserUI();
+    document.getElementById('auth-overlay').classList.add('hidden');
+    const cloudData = await loadFromSupabase();
+    if (cloudData) {
+      if (!cloudData.dayTypeConfigs) cloudData.dayTypeConfigs = {};
+      if (!cloudData.projects)       cloudData.projects = [];
+      APP.data = cloudData;
+      saveData();
+    }
+  }
+  // else: show auth overlay (default state)
+}
+
+// Auth form handlers
+function initAuthUI() {
+  const emailInput = document.getElementById('auth-email');
+  const submitBtn  = document.getElementById('auth-submit-btn');
+  const msgEl      = document.getElementById('auth-message');
+  const skipBtn    = document.getElementById('auth-skip-btn');
+  const signInBtn  = document.getElementById('sign-in-btn');
+  const signOutBtn = document.getElementById('sign-out-btn');
+
+  submitBtn.addEventListener('click', async () => {
+    const email = emailInput.value.trim();
+    if (!email || !email.includes('@')) {
+      msgEl.textContent = 'Please enter a valid email address.';
+      msgEl.className = 'error'; msgEl.style.display = 'block';
+      return;
+    }
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Sending…';
+    const { error } = await sb.auth.signInWithOtp({
+      email,
+      options: { emailRedirectTo: window.location.origin }
+    });
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'Send Magic Link';
+    if (error) {
+      msgEl.textContent = 'Error: ' + error.message;
+      msgEl.className = 'error'; msgEl.style.display = 'block';
+    } else {
+      msgEl.textContent = `✓ Magic link sent to ${email} — check your inbox and click the link to sign in.`;
+      msgEl.className = 'success'; msgEl.style.display = 'block';
+      submitBtn.style.display = 'none';
+    }
+  });
+
+  emailInput.addEventListener('keydown', e => { if(e.key==='Enter') submitBtn.click(); });
+
+  skipBtn.addEventListener('click', () => {
+    document.getElementById('auth-overlay').classList.add('hidden');
+  });
+
+  signInBtn.addEventListener('click', () => {
+    document.getElementById('auth-overlay').classList.remove('hidden');
+  });
+
+  signOutBtn.addEventListener('click', async () => {
+    await sb.auth.signOut();
+    CURRENT_USER = null;
+    updateUserUI();
+    showToast('Signed out', '');
+  });
+}
+
 // ═══════════════════════════════════════════════════
 //  DATA
 // ═══════════════════════════════════════════════════
@@ -1917,6 +2204,7 @@ function loadData() {
 
 function saveData() {
   localStorage.setItem('dayframe_data', JSON.stringify(APP.data));
+  syncToSupabase();
 }
 
 function getDay(dateStr) {
@@ -3994,9 +4282,11 @@ function initEvents() {
 //  INIT
 // ═══════════════════════════════════════════════════
 document.addEventListener('DOMContentLoaded', ()=>{
+  initAuthUI();
   initEvents();
   renderAll();
   initMobileNav();
+  initSupabase();
 });
 
 // ═══════════════════════════════════════════════════
