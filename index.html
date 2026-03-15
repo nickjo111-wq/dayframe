@@ -12,7 +12,6 @@
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <title>DayFrame</title>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Barlow+Condensed:wght@300;400;500;600;700&family=Barlow:wght@300;400;500&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   :root {
     --bg: #080808;
@@ -1991,53 +1990,101 @@
 
 <script>
 // ═══════════════════════════════════════════════════
-//  SUPABASE
+//  SUPABASE — plain fetch, no JS client
 // ═══════════════════════════════════════════════════
-const SUPABASE_URL  = 'https://ddoqmfmoqpmvowbkphm.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRkb3FtcWZtb3FwbXZvd2JrcGhtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM1MTU5ODQsImV4cCI6MjA4OTA5MTk4NH0.KX_jyLr-p47P9tt2j1qtC3NFseeTB2YJl-e_6tEfKHs';
-const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON, {
-  auth: {
-    flowType: 'pkce',
-    autoRefreshToken: true,
-    persistSession: true,
-    detectSessionInUrl: true
-  },
-  global: {
-    fetch: (url, options = {}) => {
-      const proxyUrl = url.toString().replace(
-        'https://ddoqmfmoqpmvowbkphm.supabase.co',
-        '/.netlify/functions/supabase-proxy'
-      );
-      return fetch(proxyUrl, options);
-    }
-  }
-});
+const PROXY = '/.netlify/functions/supabase-proxy';
 
 let CURRENT_USER = null;
 let syncTimer    = null;
 
-// Show/hide sync indicator
-function showSync(msg, type='') {
-  const el = document.getElementById('sync-indicator');
-  el.textContent = msg;
-  el.className = 'show' + (type ? ' '+type : '');
-  clearTimeout(window._syncIndicatorTimer);
-  window._syncIndicatorTimer = setTimeout(() => { el.className = ''; }, 2500);
+// ── Session storage ──────────────────────────────
+function getSession() {
+  try { return JSON.parse(localStorage.getItem('dayframe_session') || 'null'); }
+  catch(e) { return null; }
+}
+function setSession(s) {
+  if (s) localStorage.setItem('dayframe_session', JSON.stringify(s));
+  else   localStorage.removeItem('dayframe_session');
 }
 
-// Save data to Supabase (debounced)
+// ── Auth calls ───────────────────────────────────
+async function sendMagicLink(email) {
+  const res = await fetch(PROXY + '/auth/v1/otp', {
+    method: 'POST',
+    headers: { 'Content-Type':'application/json', 'apikey': SUPABASE_ANON },
+    body: JSON.stringify({ email, options:{ emailRedirectTo: window.location.origin } })
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error_description || data.msg || 'Failed to send magic link');
+  return data;
+}
+
+async function getUserFromToken(token) {
+  const res = await fetch(PROXY + '/auth/v1/user', {
+    headers: { 'apikey': SUPABASE_ANON, 'Authorization': 'Bearer ' + token }
+  });
+  return await res.json();
+}
+
+async function signOut() {
+  const session = getSession();
+  if (session) {
+    await fetch(PROXY + '/auth/v1/logout', {
+      method: 'POST',
+      headers: { 'apikey': SUPABASE_ANON, 'Authorization': 'Bearer ' + session.access_token }
+    }).catch(()=>{});
+  }
+  setSession(null);
+  CURRENT_USER = null;
+}
+
+// ── Data calls ───────────────────────────────────
+async function sbRequest(path, method='GET', body=null) {
+  const session = getSession();
+  if (!session) throw new Error('Not signed in');
+  const headers = {
+    'Content-Type':  'application/json',
+    'apikey':        SUPABASE_ANON,
+    'Authorization': 'Bearer ' + session.access_token,
+    'Prefer':        'resolution=merge-duplicates,return=minimal'
+  };
+  const opts = { method, headers };
+  if (body) opts.body = JSON.stringify(body);
+  const res = await fetch(PROXY + path, opts);
+  if (res.status === 204 || res.status === 201) return null;
+  return await res.json();
+}
+
+async function loadFromSupabase() {
+  if (!CURRENT_USER) return null;
+  try {
+    const rows = await sbRequest(`/rest/v1/user_data?user_id=eq.${CURRENT_USER.id}&select=data`);
+    return rows?.[0]?.data || null;
+  } catch(e) { console.error('Load error:', e); return null; }
+}
+
+// ── Sync indicator ───────────────────────────────
+function showSync(msg, type='') {
+  const el = document.getElementById('sync-indicator');
+  if (!el) return;
+  el.textContent = msg;
+  el.className = 'show' + (type ? ' '+type : '');
+  clearTimeout(window._syncTimer2);
+  window._syncTimer2 = setTimeout(() => { el.className = ''; }, 2500);
+}
+
 async function syncToSupabase() {
   if (!CURRENT_USER) return;
   clearTimeout(syncTimer);
   syncTimer = setTimeout(async () => {
     showSync('Syncing…');
     try {
-      const { error } = await sb.from('user_data').upsert({
+      await sbRequest('/rest/v1/user_data', 'POST', {
         user_id:    CURRENT_USER.id,
         data:       APP.data,
         updated_at: new Date().toISOString()
-      }, { onConflict: 'user_id' });
-      if (error) throw error;
+      });
       showSync('✓ Saved', 'saved');
     } catch(e) {
       showSync('Sync failed', '');
@@ -2046,82 +2093,78 @@ async function syncToSupabase() {
   }, 1500);
 }
 
-// Load data from Supabase
-async function loadFromSupabase() {
-  if (!CURRENT_USER) return null;
-  try {
-    const { data, error } = await sb.from('user_data')
-      .select('data')
-      .eq('user_id', CURRENT_USER.id)
-      .single();
-    if (error && error.code !== 'PGRST116') throw error;
-    return data?.data || null;
-  } catch(e) {
-    console.error('Load error:', e);
-    return null;
-  }
-}
-
-// Update topbar user UI
+// ── User UI ──────────────────────────────────────
 function updateUserUI() {
   const indicator = document.getElementById('user-indicator');
   const signInBtn = document.getElementById('sign-in-btn');
   const emailEl   = document.getElementById('user-email-display');
   if (CURRENT_USER) {
-    indicator.style.display = 'flex';
-    signInBtn.style.display = 'none';
-    emailEl.textContent = CURRENT_USER.email;
+    if (indicator) indicator.style.display = 'flex';
+    if (signInBtn) signInBtn.style.display = 'none';
+    if (emailEl)   emailEl.textContent = CURRENT_USER.email;
   } else {
-    indicator.style.display = 'none';
-    signInBtn.style.display = '';
+    if (indicator) indicator.style.display = 'none';
+    if (signInBtn) signInBtn.style.display = '';
   }
 }
 
-// Init auth
+// ── Handle magic link redirect ───────────────────
+async function handleMagicLinkCallback() {
+  const hash = window.location.hash;
+  if (!hash) return false;
+  const params = new URLSearchParams(hash.slice(1));
+  const accessToken = params.get('access_token');
+  const type        = params.get('type');
+  if (!accessToken || (type !== 'magiclink' && type !== 'signup' && type !== 'recovery')) return false;
+
+  // Clean up URL
+  history.replaceState(null, '', window.location.pathname);
+
+  const session = {
+    access_token:  accessToken,
+    refresh_token: params.get('refresh_token') || ''
+  };
+  setSession(session);
+
+  const user = await getUserFromToken(accessToken);
+  if (user?.id) {
+    CURRENT_USER = user;
+    setSession({ ...session, user });
+    return true;
+  }
+  return false;
+}
+
+// ── Init ─────────────────────────────────────────
 async function initSupabase() {
-  // Listen for auth state changes
-  sb.auth.onAuthStateChange(async (event, session) => {
-    CURRENT_USER = session?.user || null;
-    updateUserUI();
+  // Check if returning from magic link
+  const fromMagicLink = await handleMagicLinkCallback();
 
-    if (event === 'SIGNED_IN') {
-      document.getElementById('auth-overlay').classList.add('hidden');
-      showSync('Loading your data…');
-      const cloudData = await loadFromSupabase();
-      if (cloudData) {
-        // Merge: prefer cloud data but keep local if cloud is empty
-        if (!cloudData.dayTypeConfigs) cloudData.dayTypeConfigs = {};
-        if (!cloudData.projects)       cloudData.projects = [];
-        APP.data = cloudData;
-        saveData(); // update localStorage cache
-        renderAll();
-      }
-      showSync('✓ Synced', 'saved');
+  if (!fromMagicLink) {
+    // Check existing session
+    const session = getSession();
+    if (session?.user) {
+      CURRENT_USER = session.user;
     }
+  }
 
-    if (event === 'SIGNED_OUT') {
-      updateUserUI();
-    }
-  });
-
-  // Check existing session
-  const { data: { session } } = await sb.auth.getSession();
-  if (session?.user) {
-    CURRENT_USER = session.user;
-    updateUserUI();
+  if (CURRENT_USER) {
     document.getElementById('auth-overlay').classList.add('hidden');
+    updateUserUI();
+    showSync('Loading your data…');
     const cloudData = await loadFromSupabase();
     if (cloudData) {
       if (!cloudData.dayTypeConfigs) cloudData.dayTypeConfigs = {};
       if (!cloudData.projects)       cloudData.projects = [];
       APP.data = cloudData;
-      saveData();
+      localStorage.setItem('dayframe_data', JSON.stringify(APP.data));
+      renderAll();
     }
+    showSync('✓ Synced', 'saved');
   }
-  // else: show auth overlay (default state)
 }
 
-// Auth form handlers
+// ── Auth UI ──────────────────────────────────────
 function initAuthUI() {
   const emailInput = document.getElementById('auth-email');
   const submitBtn  = document.getElementById('auth-submit-btn');
@@ -2134,40 +2177,32 @@ function initAuthUI() {
     const email = emailInput.value.trim();
     if (!email || !email.includes('@')) {
       msgEl.textContent = 'Please enter a valid email address.';
-      msgEl.className = 'error'; msgEl.style.display = 'block';
-      return;
+      msgEl.className = 'error'; msgEl.style.display = 'block'; return;
     }
     submitBtn.disabled = true;
     submitBtn.textContent = 'Sending…';
-    const { error } = await sb.auth.signInWithOtp({
-      email,
-      options: { emailRedirectTo: window.location.origin }
-    });
-    submitBtn.disabled = false;
-    submitBtn.textContent = 'Send Magic Link';
-    if (error) {
-      msgEl.textContent = 'Error: ' + error.message;
-      msgEl.className = 'error'; msgEl.style.display = 'block';
-    } else {
+    try {
+      await sendMagicLink(email);
       msgEl.textContent = `✓ Magic link sent to ${email} — check your inbox and click the link to sign in.`;
       msgEl.className = 'success'; msgEl.style.display = 'block';
       submitBtn.style.display = 'none';
+    } catch(err) {
+      msgEl.textContent = 'Error: ' + err.message;
+      msgEl.className = 'error'; msgEl.style.display = 'block';
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Send Magic Link';
     }
   });
 
   emailInput.addEventListener('keydown', e => { if(e.key==='Enter') submitBtn.click(); });
-
   skipBtn.addEventListener('click', () => {
     document.getElementById('auth-overlay').classList.add('hidden');
   });
-
-  signInBtn.addEventListener('click', () => {
+  signInBtn?.addEventListener('click', () => {
     document.getElementById('auth-overlay').classList.remove('hidden');
   });
-
-  signOutBtn.addEventListener('click', async () => {
-    await sb.auth.signOut();
-    CURRENT_USER = null;
+  signOutBtn?.addEventListener('click', async () => {
+    await signOut();
     updateUserUI();
     showToast('Signed out', '');
   });
