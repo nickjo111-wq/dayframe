@@ -53,13 +53,19 @@ CALENDAR DATA:
 ${JSON.stringify(calendarData, null, 2)}
 
 DATA STRUCTURE:
-- days: object keyed by "YYYY-MM-DD", each day has { dayType, blocks[], notes }
-- blocks: { id, title, start, end, cat, notes, completed, trafficLight }
+- days: object keyed by "YYYY-MM-DD", each day has { dayType, blocks[], notes, markers[] }
+- blocks: { id, title, start, end, cat, notes, completed, trafficLight } — time-boxed tasks with start/end times
+- markers: { id, title, cat } — all-day indicators, no time needed (school closures, holidays, match days, reminders)
 - start/end: "HH:MM" 24-hour format
-- cat: "habit" | "todo" | "workout" | "kids" | "custom" | "free"
+- cat: "habit" | "todo" | "workout" | "kids" | "custom" | "free" | "event"
 - trafficLight: null | "done" | "missed"
 - lists: habit/todo/workout/kids lists with items
 - projects: projects with steps
+
+BLOCKS vs MARKERS — this is important:
+- Use BLOCKS for things the user will actually DO at a specific time (gym at 7am, meeting at 2pm, work session)
+- Use MARKERS for things happening ON the day that don't need time-boxing (school closed, bank holiday, Man Utd match day, birthday, reminder)
+- When in doubt: if it needs a start/end time → block. If it's just "on this day" → marker
 
 CAPABILITIES:
 You can answer questions about the calendar AND make changes. When making changes, include a JSON actions block in your response.
@@ -67,6 +73,16 @@ You can answer questions about the calendar AND make changes. When making change
 ACTIONS FORMAT — include this at the end of your response when making changes:
 \`\`\`actions
 [
+  {
+    "type": "add_marker",
+    "date": "YYYY-MM-DD",
+    "title": "School Closed - Easter Holidays",
+    "cat": "kids"
+  },
+  {
+    "type": "delete_markers_matching",
+    "titleContains": "School"
+  },
   {
     "type": "add_block",
     "date": "YYYY-MM-DD",
