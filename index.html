@@ -2048,9 +2048,7 @@ async function signInWithEmail(email) {
   showSync('Loading your data…');
   const cloudData = await loadFromCloud(email);
   if (cloudData) {
-    if (!cloudData.dayTypeConfigs) cloudData.dayTypeConfigs = {};
-    if (!cloudData.projects) cloudData.projects = [];
-    APP.data = cloudData;
+    APP.data = ensureDataStructure(cloudData);
     localStorage.setItem('dayframe_data', JSON.stringify(APP.data));
     renderAll();
   }
@@ -2065,9 +2063,7 @@ async function initSupabase() {
     showSync('Loading your data…');
     const cloudData = await loadFromCloud(email);
     if (cloudData) {
-      if (!cloudData.dayTypeConfigs) cloudData.dayTypeConfigs = {};
-      if (!cloudData.projects) cloudData.projects = [];
-      APP.data = cloudData;
+      APP.data = ensureDataStructure(cloudData);
       localStorage.setItem('dayframe_data', JSON.stringify(APP.data));
       renderAll();
     }
@@ -2169,10 +2165,20 @@ function saveData() {
 }
 
 function getDay(dateStr) {
+  if (!APP.data.days) APP.data.days = {};
   if (!APP.data.days[dateStr]) {
     APP.data.days[dateStr] = { dayType:'', blocks:[], notes:'' };
   }
   return APP.data.days[dateStr];
+}
+
+function ensureDataStructure(data) {
+  if (!data.lists)          data.lists = JSON.parse(JSON.stringify(DEFAULT_LISTS));
+  if (!data.dayTypes)       data.dayTypes = [...DEFAULT_DAY_TYPES];
+  if (!data.dayTypeConfigs) data.dayTypeConfigs = {};
+  if (!data.projects)       data.projects = [];
+  if (!data.days)           data.days = {};
+  return data;
 }
 
 // ═══════════════════════════════════════════════════
