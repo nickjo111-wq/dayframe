@@ -3,7 +3,7 @@ const APP_SHELL = ['/', '/index.html', '/manifest.json', '/icons/icon-192.png', 
 
 self.addEventListener('install', event => {
   event.waitUntil(
-    caches.open(CACHE_NAME)
+    caches.open(dayframe-v7)
       .then(cache => cache.addAll(APP_SHELL))
       .then(() => self.skipWaiting())
   );
