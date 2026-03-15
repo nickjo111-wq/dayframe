@@ -1990,224 +1990,134 @@
 
 <script>
 // ═══════════════════════════════════════════════════
-//  SUPABASE — plain fetch, no JS client
+//  SYNC — Netlify Blobs
 // ═══════════════════════════════════════════════════
-const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF6cWpodHphZGlhc3FkcmVwcHpwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM1NzAyODAsImV4cCI6MjA4OTE0NjI4MH0.6uqoz-6AO5wkf4t7RvzZrCIGoHCLrzVid5tX-MF299Y';
-const PROXY = '/.netlify/functions/supabase-proxy';
-
 let CURRENT_USER = null;
 let syncTimer    = null;
 
-// ── Session storage ──────────────────────────────
-function getSession() {
-  try { return JSON.parse(localStorage.getItem('dayframe_session') || 'null'); }
-  catch(e) { return null; }
-}
-function setSession(s) {
-  if (s) localStorage.setItem('dayframe_session', JSON.stringify(s));
-  else   localStorage.removeItem('dayframe_session');
-}
+function getStoredEmail() { return localStorage.getItem('dayframe_email') || null; }
+function setStoredEmail(e) { if(e) localStorage.setItem('dayframe_email',e); else localStorage.removeItem('dayframe_email'); }
 
-// ── Auth calls ───────────────────────────────────
-async function sendMagicLink(email) {
-  const res = await fetch(PROXY + '/auth/v1/otp', {
-    method: 'POST',
-    headers: { 'Content-Type':'application/json', 'apikey': SUPABASE_ANON },
-    body: JSON.stringify({ email, options:{ emailRedirectTo: window.location.origin } })
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error_description || data.msg || 'Failed to send magic link');
-  return data;
-}
-
-async function getUserFromToken(token) {
-  const res = await fetch(PROXY + '/auth/v1/user', {
-    headers: { 'apikey': SUPABASE_ANON, 'Authorization': 'Bearer ' + token }
-  });
-  return await res.json();
-}
-
-async function signOut() {
-  const session = getSession();
-  if (session) {
-    await fetch(PROXY + '/auth/v1/logout', {
-      method: 'POST',
-      headers: { 'apikey': SUPABASE_ANON, 'Authorization': 'Bearer ' + session.access_token }
-    }).catch(()=>{});
-  }
-  setSession(null);
-  CURRENT_USER = null;
-}
-
-// ── Data calls ───────────────────────────────────
-async function sbRequest(path, method='GET', body=null) {
-  const session = getSession();
-  if (!session) throw new Error('Not signed in');
-  const headers = {
-    'Content-Type':  'application/json',
-    'apikey':        SUPABASE_ANON,
-    'Authorization': 'Bearer ' + session.access_token,
-    'Prefer':        'resolution=merge-duplicates,return=minimal'
-  };
-  const opts = { method, headers };
-  if (body) opts.body = JSON.stringify(body);
-  const res = await fetch(PROXY + path, opts);
-  if (res.status === 204 || res.status === 201) return null;
-  return await res.json();
-}
-
-async function loadFromSupabase() {
-  if (!CURRENT_USER) return null;
-  try {
-    const rows = await sbRequest(`/rest/v1/user_data?user_id=eq.${CURRENT_USER.id}&select=data`);
-    return rows?.[0]?.data || null;
-  } catch(e) { console.error('Load error:', e); return null; }
-}
-
-// ── Sync indicator ───────────────────────────────
 function showSync(msg, type='') {
   const el = document.getElementById('sync-indicator');
   if (!el) return;
-  el.textContent = msg;
-  el.className = 'show' + (type ? ' '+type : '');
+  el.textContent = msg; el.className = 'show'+(type?' '+type:'');
   clearTimeout(window._syncTimer2);
-  window._syncTimer2 = setTimeout(() => { el.className = ''; }, 2500);
+  window._syncTimer2 = setTimeout(()=>{ el.className=''; }, 2500);
 }
 
-async function syncToSupabase() {
+async function syncToCloud() {
   if (!CURRENT_USER) return;
   clearTimeout(syncTimer);
   syncTimer = setTimeout(async () => {
     showSync('Syncing…');
     try {
-      await sbRequest('/rest/v1/user_data', 'POST', {
-        user_id:    CURRENT_USER.id,
-        data:       APP.data,
-        updated_at: new Date().toISOString()
+      const res = await fetch('/.netlify/functions/sync', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ email: CURRENT_USER, action:'save', data: APP.data })
       });
-      showSync('✓ Saved', 'saved');
-    } catch(e) {
-      showSync('Sync failed', '');
-      console.error('Sync error:', e);
-    }
+      if (!res.ok) throw new Error();
+      showSync('✓ Saved','saved');
+    } catch(e) { showSync('Sync failed',''); }
   }, 1500);
 }
+function syncToSupabase() { syncToCloud(); }
 
-// ── User UI ──────────────────────────────────────
+async function loadFromCloud(email) {
+  try {
+    const res = await fetch('/.netlify/functions/sync', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ email, action:'load' })
+    });
+    const json = await res.json();
+    return json.data || null;
+  } catch(e) { return null; }
+}
+
 function updateUserUI() {
-  const indicator = document.getElementById('user-indicator');
-  const signInBtn = document.getElementById('sign-in-btn');
-  const emailEl   = document.getElementById('user-email-display');
-  if (CURRENT_USER) {
-    if (indicator) indicator.style.display = 'flex';
-    if (signInBtn) signInBtn.style.display = 'none';
-    if (emailEl)   emailEl.textContent = CURRENT_USER.email;
-  } else {
-    if (indicator) indicator.style.display = 'none';
-    if (signInBtn) signInBtn.style.display = '';
-  }
+  const ind = document.getElementById('user-indicator');
+  const btn = document.getElementById('sign-in-btn');
+  const em  = document.getElementById('user-email-display');
+  if (CURRENT_USER) { if(ind)ind.style.display='flex'; if(btn)btn.style.display='none'; if(em)em.textContent=CURRENT_USER; }
+  else { if(ind)ind.style.display='none'; if(btn)btn.style.display=''; }
 }
 
-// ── Handle magic link redirect ───────────────────
-async function handleMagicLinkCallback() {
-  const hash = window.location.hash;
-  if (!hash) return false;
-  const params = new URLSearchParams(hash.slice(1));
-  const accessToken = params.get('access_token');
-  const type        = params.get('type');
-  if (!accessToken || (type !== 'magiclink' && type !== 'signup' && type !== 'recovery')) return false;
-
-  // Clean up URL
-  history.replaceState(null, '', window.location.pathname);
-
-  const session = {
-    access_token:  accessToken,
-    refresh_token: params.get('refresh_token') || ''
-  };
-  setSession(session);
-
-  const user = await getUserFromToken(accessToken);
-  if (user?.id) {
-    CURRENT_USER = user;
-    setSession({ ...session, user });
-    return true;
+async function signInWithEmail(email) {
+  CURRENT_USER = email; setStoredEmail(email); updateUserUI();
+  document.getElementById('auth-overlay').classList.add('hidden');
+  showSync('Loading your data…');
+  const cloudData = await loadFromCloud(email);
+  if (cloudData) {
+    if (!cloudData.dayTypeConfigs) cloudData.dayTypeConfigs = {};
+    if (!cloudData.projects) cloudData.projects = [];
+    APP.data = cloudData;
+    localStorage.setItem('dayframe_data', JSON.stringify(APP.data));
+    renderAll();
   }
-  return false;
+  showSync('✓ Synced','saved');
 }
 
-// ── Init ─────────────────────────────────────────
 async function initSupabase() {
-  // Check if returning from magic link
-  const fromMagicLink = await handleMagicLinkCallback();
-
-  if (!fromMagicLink) {
-    // Check existing session
-    const session = getSession();
-    if (session?.user) {
-      CURRENT_USER = session.user;
-    }
-  }
-
-  if (CURRENT_USER) {
+  const email = getStoredEmail();
+  if (email) {
+    CURRENT_USER = email; updateUserUI();
     document.getElementById('auth-overlay').classList.add('hidden');
-    updateUserUI();
     showSync('Loading your data…');
-    const cloudData = await loadFromSupabase();
+    const cloudData = await loadFromCloud(email);
     if (cloudData) {
       if (!cloudData.dayTypeConfigs) cloudData.dayTypeConfigs = {};
-      if (!cloudData.projects)       cloudData.projects = [];
+      if (!cloudData.projects) cloudData.projects = [];
       APP.data = cloudData;
       localStorage.setItem('dayframe_data', JSON.stringify(APP.data));
       renderAll();
     }
-    showSync('✓ Synced', 'saved');
+    showSync('✓ Synced','saved');
   }
 }
 
-// ── Auth UI ──────────────────────────────────────
 function initAuthUI() {
   const emailInput = document.getElementById('auth-email');
   const submitBtn  = document.getElementById('auth-submit-btn');
   const msgEl      = document.getElementById('auth-message');
-  const skipBtn    = document.getElementById('auth-skip-btn');
-  const signInBtn  = document.getElementById('sign-in-btn');
-  const signOutBtn = document.getElementById('sign-out-btn');
+  submitBtn.textContent = 'Sign In & Sync';
 
   submitBtn.addEventListener('click', async () => {
-    const email = emailInput.value.trim();
+    const email = emailInput.value.trim().toLowerCase();
     if (!email || !email.includes('@')) {
       msgEl.textContent = 'Please enter a valid email address.';
       msgEl.className = 'error'; msgEl.style.display = 'block'; return;
     }
-    submitBtn.disabled = true;
-    submitBtn.textContent = 'Sending…';
+    submitBtn.disabled = true; submitBtn.textContent = 'Connecting…';
     try {
-      await sendMagicLink(email);
-      msgEl.textContent = `✓ Magic link sent to ${email} — check your inbox and click the link to sign in.`;
-      msgEl.className = 'success'; msgEl.style.display = 'block';
-      submitBtn.style.display = 'none';
+      const res = await fetch('/.netlify/functions/sync', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ email, action:'load' })
+      });
+      if (!res.ok) throw new Error('Could not connect to sync service');
+      submitBtn.disabled = false; submitBtn.textContent = 'Sign In & Sync';
+      await signInWithEmail(email);
     } catch(err) {
       msgEl.textContent = 'Error: ' + err.message;
       msgEl.className = 'error'; msgEl.style.display = 'block';
-      submitBtn.disabled = false;
-      submitBtn.textContent = 'Send Magic Link';
+      submitBtn.disabled = false; submitBtn.textContent = 'Sign In & Sync';
     }
   });
 
   emailInput.addEventListener('keydown', e => { if(e.key==='Enter') submitBtn.click(); });
-  skipBtn.addEventListener('click', () => {
+  document.getElementById('auth-skip-btn').addEventListener('click', () => {
     document.getElementById('auth-overlay').classList.add('hidden');
   });
-  signInBtn?.addEventListener('click', () => {
+  document.getElementById('sign-in-btn')?.addEventListener('click', () => {
     document.getElementById('auth-overlay').classList.remove('hidden');
   });
-  signOutBtn?.addEventListener('click', async () => {
-    await signOut();
-    updateUserUI();
-    showToast('Signed out', '');
+  document.getElementById('sign-out-btn')?.addEventListener('click', () => {
+    CURRENT_USER = null; setStoredEmail(null); updateUserUI();
+    showToast('Signed out','');
   });
 }
 
+// ═══════════════════════════════════════════════════
+//  DATA
 // ═══════════════════════════════════════════════════
 //  DATA
 // ═══════════════════════════════════════════════════
