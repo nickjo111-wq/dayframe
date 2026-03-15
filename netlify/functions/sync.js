@@ -1,38 +1,48 @@
-// DayFrame sync using Netlify Blobs
-// No external services needed — data stored on Netlify's own infrastructure
-
-const { getStore } = require('@netlify/blobs');
-
-exports.handler = async (event) => {
+// DayFrame sync using Netlify Blobs built-in API
+exports.handler = async (event, context) => {
   const cors = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Content-Type',
-    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
     'Content-Type': 'application/json'
   };
 
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: cors, body: '' };
+  if (event.httpMethod !== 'POST') return { statusCode: 405, headers: cors, body: '{}' };
 
   try {
-    const store = getStore('dayframe-user-data');
-    const body  = event.body ? JSON.parse(event.body) : {};
+    const body  = JSON.parse(event.body || '{}');
     const email = (body.email || '').toLowerCase().trim();
 
     if (!email || !email.includes('@')) {
       return { statusCode: 400, headers: cors, body: JSON.stringify({ error: 'Email required' }) };
     }
 
-    // Use email hash as key (simple obfuscation)
-    const key = Buffer.from(email).toString('base64').replace(/[^a-zA-Z0-9]/g, '');
+    const key      = Buffer.from(email).toString('base64').replace(/[^a-zA-Z0-9]/g, '');
+    const siteID   = process.env.SITE_ID || context.clientContext?.site?.id || 'local';
+    const token    = process.env.NETLIFY_BLOBS_TOKEN || process.env.TOKEN;
+    const storeURL = `https://api.netlify.com/api/v1/sites/${siteID}/blobs/${key}`;
 
-    if (event.httpMethod === 'GET' || body.action === 'load') {
-      const data = await store.get(key, { type: 'json' }).catch(() => null);
-      return { statusCode: 200, headers: cors, body: JSON.stringify({ data: data || null }) };
+    const headers = {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    };
+
+    if (body.action === 'load') {
+      const res = await fetch(storeURL, { headers });
+      if (res.status === 404) return { statusCode: 200, headers: cors, body: JSON.stringify({ data: null }) };
+      if (!res.ok) throw new Error('Load failed: ' + res.status);
+      const data = await res.json();
+      return { statusCode: 200, headers: cors, body: JSON.stringify({ data }) };
     }
 
     if (body.action === 'save') {
-      if (!body.data) return { statusCode: 400, headers: cors, body: JSON.stringify({ error: 'No data' }) };
-      await store.setJSON(key, body.data);
+      const res = await fetch(storeURL, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify(body.data)
+      });
+      if (!res.ok) throw new Error('Save failed: ' + res.status);
       return { statusCode: 200, headers: cors, body: JSON.stringify({ ok: true }) };
     }
 
@@ -42,4 +52,3 @@ exports.handler = async (event) => {
     return { statusCode: 500, headers: cors, body: JSON.stringify({ error: err.message }) };
   }
 };
-
