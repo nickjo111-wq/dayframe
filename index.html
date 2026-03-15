@@ -1995,7 +1995,23 @@
 // ═══════════════════════════════════════════════════
 const SUPABASE_URL  = 'https://ddoqmfmoqpmvowbkphm.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRkb3FtcWZtb3FwbXZvd2JrcGhtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM1MTU5ODQsImV4cCI6MjA4OTA5MTk4NH0.KX_jyLr-p47P9tt2j1qtC3NFseeTB2YJl-e_6tEfKHs';
-const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON, {
+  auth: {
+    flowType: 'pkce',
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: true
+  },
+  global: {
+    fetch: (url, options = {}) => {
+      const proxyUrl = url.toString().replace(
+        'https://ddoqmfmoqpmvowbkphm.supabase.co',
+        '/.netlify/functions/supabase-proxy'
+      );
+      return fetch(proxyUrl, options);
+    }
+  }
+});
 
 let CURRENT_USER = null;
 let syncTimer    = null;
