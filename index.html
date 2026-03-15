@@ -1461,6 +1461,53 @@
   #assistant-send-btn:hover { background:#d4b450; }
   #assistant-send-btn:disabled { opacity:0.4; cursor:not-allowed; }
 
+  /* ── Day Glance Panel ───────────────────────────── */
+  #day-glance {
+    flex-shrink:0; padding:0;
+    border-bottom:1px solid var(--border);
+  }
+  #day-glance:empty { display:none; }
+
+  .glance-markers {
+    display:flex; flex-wrap:wrap; gap:6px;
+    padding:8px 16px;
+  }
+  .day-marker {
+    display:inline-flex; align-items:center; gap:6px;
+    padding:5px 10px; border-radius:20px;
+    font-family:'Barlow Condensed',sans-serif; font-size:12px;
+    font-weight:500; letter-spacing:0.05em; cursor:pointer;
+    transition:opacity 0.15s; user-select:none;
+    border:1px solid transparent;
+  }
+  .day-marker:hover { opacity:0.8; }
+  .day-marker.cat-kids     { background:#2a1f0a; border-color:#9a7a4a55; color:#c8a060; }
+  .day-marker.cat-habit    { background:#0a2a1a; border-color:#4e8f6e55; color:#4e8f6e; }
+  .day-marker.cat-todo     { background:#0a1a2a; border-color:#4a72a055; color:#6a9ac8; }
+  .day-marker.cat-workout  { background:#2a0a0a; border-color:#9a505055; color:#c87070; }
+  .day-marker.cat-custom   { background:#1a0a2a; border-color:#6a4e9a55; color:#9a7ac8; }
+  .day-marker.cat-free     { background:#0a2a2a; border-color:#4a8a8a55; color:#6ababa; }
+  .day-marker.cat-event    { background:#1a1a0a; border-color:#c8a84b55; color:#c8a84b; }
+  .day-marker-del {
+    background:none; border:none; cursor:pointer;
+    color:inherit; opacity:0.5; font-size:11px; padding:0;
+    transition:opacity 0.15s; line-height:1;
+  }
+  .day-marker-del:hover { opacity:1; }
+
+  .glance-add-marker {
+    display:inline-flex; align-items:center; gap:4px;
+    padding:4px 10px; border-radius:20px;
+    background:none; border:1px dashed var(--border2);
+    color:var(--text3); font-family:'Barlow Condensed',sans-serif;
+    font-size:11px; font-weight:500; letter-spacing:0.08em;
+    cursor:pointer; transition:all 0.15s;
+  }
+  .glance-add-marker:hover { border-color:var(--gold-dim); color:var(--gold); }
+
+  /* Add marker modal */
+  #marker-modal .modal { width:360px; }
+
   /* Desktop: hide mobile-only elements */
   @media (min-width: 769px) {
     #mobile-nav { display: none; }
@@ -1660,6 +1707,9 @@
       <div class="stat-item"><span class="stat-dot" style="background:var(--blue)"></span><span class="stat-label">Blocks</span><span class="stat-val" id="stat-blocks">0</span></div>
       <div class="stat-item"><span class="stat-dot" style="background:var(--text3)"></span><span class="stat-label">Remaining</span><span class="stat-val" id="stat-remaining">0</span></div>
     </div>
+
+    <!-- Day Glance Panel -->
+    <div id="day-glance"></div>
 
     <!-- Time Grid -->
     <div id="grid-wrapper">
@@ -2134,6 +2184,37 @@
 </div>
 <div id="assistant-overlay"></div>
 
+<!-- Add Marker Modal -->
+<div class="modal-overlay" id="marker-modal">
+  <div class="modal" style="width:360px">
+    <div class="modal-header">
+      <div class="modal-title">Add Day Marker</div>
+      <button class="modal-close" data-close="marker-modal">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">What's happening?</label>
+        <input class="form-input" id="marker-title-input" placeholder="e.g. School closed, Bank holiday, Match day…" />
+      </div>
+      <div class="form-group" style="margin-bottom:0">
+        <label class="form-label">Category</label>
+        <div id="marker-cat-pills" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">
+          <button class="recur-day-pill active" data-cat="event">📅 Event</button>
+          <button class="recur-day-pill" data-cat="kids">👨‍👩‍👧 Kids</button>
+          <button class="recur-day-pill" data-cat="habit">✅ Habit</button>
+          <button class="recur-day-pill" data-cat="todo">📋 To-Do</button>
+          <button class="recur-day-pill" data-cat="workout">💪 Workout</button>
+          <button class="recur-day-pill" data-cat="free">🕐 Other</button>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" data-close="marker-modal">Cancel</button>
+      <button class="btn btn-primary" id="marker-save-btn">Add Marker</button>
+    </div>
+  </div>
+</div>
+
 <!-- Toast -->
 <div id="toast"></div>
 
@@ -2316,8 +2397,9 @@ function saveData() {
 function getDay(dateStr) {
   if (!APP.data.days) APP.data.days = {};
   if (!APP.data.days[dateStr]) {
-    APP.data.days[dateStr] = { dayType:'', blocks:[], notes:'' };
+    APP.data.days[dateStr] = { dayType:'', blocks:[], notes:'', markers:[] };
   }
+  if (!APP.data.days[dateStr].markers) APP.data.days[dateStr].markers = [];
   return APP.data.days[dateStr];
 }
 
@@ -3319,6 +3401,82 @@ function markRecurDone(block, completed) {
   saveData();
 }
 
+// ═══════════════════════════════════════════════════
+//  DAY MARKERS & GLANCE PANEL
+// ═══════════════════════════════════════════════════
+const MARKER_COLORS = {
+  event:'#c8a84b', kids:'#c8a060', habit:'#4e8f6e',
+  todo:'#6a9ac8', workout:'#c87070', custom:'#9a7ac8', free:'#6ababa'
+};
+
+function renderDayGlance() {
+  const glance = document.getElementById('day-glance');
+  if (!glance) return;
+  const ds  = dateStr(APP.selectedDate);
+  const day = getDay(ds);
+  const markers = day.markers || [];
+
+  if (!markers.length) {
+    // Show add button only
+    glance.innerHTML = `<div class="glance-markers">
+      <button class="glance-add-marker" id="add-marker-btn">＋ Add marker</button>
+    </div>`;
+  } else {
+    glance.innerHTML = `<div class="glance-markers">
+      ${markers.map((m, i) => `
+        <div class="day-marker cat-${m.cat||'event'}" data-mi="${i}">
+          ${escHtml(m.title)}
+          <button class="day-marker-del" data-mi="${i}" title="Remove">✕</button>
+        </div>`).join('')}
+      <button class="glance-add-marker" id="add-marker-btn">＋ Add marker</button>
+    </div>`;
+  }
+
+  // Wire delete buttons
+  glance.querySelectorAll('.day-marker-del').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const day2 = getDay(ds);
+      day2.markers.splice(parseInt(btn.dataset.mi), 1);
+      saveData(); renderDayGlance();
+    });
+  });
+
+  // Wire add button
+  document.getElementById('add-marker-btn')?.addEventListener('click', () => openMarkerModal());
+}
+
+function openMarkerModal() {
+  document.getElementById('marker-title-input').value = '';
+  // Reset cat pills
+  document.querySelectorAll('#marker-cat-pills .recur-day-pill').forEach(p => {
+    p.classList.toggle('active', p.dataset.cat === 'event');
+  });
+  openModal('marker-modal');
+  setTimeout(() => document.getElementById('marker-title-input').focus(), 150);
+}
+
+function saveMarker() {
+  const title = document.getElementById('marker-title-input').value.trim();
+  if (!title) { document.getElementById('marker-title-input').focus(); return; }
+  const cat = document.querySelector('#marker-cat-pills .recur-day-pill.active')?.dataset.cat || 'event';
+  const ds  = dateStr(APP.selectedDate);
+  const day = getDay(ds);
+  day.markers.push({ id: uid(), title, cat });
+  saveData();
+  closeModal('marker-modal');
+  renderDayGlance();
+}
+
+// Add marker programmatically (used by AI assistant)
+function addMarker(ds, title, cat) {
+  const day = getDay(ds);
+  // Avoid duplicates
+  if (day.markers.some(m => m.title.toLowerCase() === title.toLowerCase())) return false;
+  day.markers.push({ id: uid(), title, cat: cat || 'event' });
+  return true;
+}
+
 function renderAll() {
   applyRecurringItems(dateStr(APP.selectedDate));
   renderCalendar();
@@ -3327,6 +3485,7 @@ function renderAll() {
   renderListTabs();
   renderListContent();
   renderProjects();
+  renderDayGlance();
   renderTimeGrid();
   renderStats();
   loadNotes();
@@ -4140,6 +4299,22 @@ function applyActions(actions) {
           count++;
         }
       }
+      else if (action.type === 'add_marker') {
+        const added = addMarker(action.date, action.title, action.cat || 'event');
+        if (added) count++;
+      }
+      else if (action.type === 'delete_markers_matching') {
+        const pattern = (action.titleContains || '').toLowerCase();
+        Object.keys(APP.data.days).forEach(ds => {
+          const day = APP.data.days[ds];
+          if (!day.markers) return;
+          const before = day.markers.length;
+          day.markers = day.markers.filter(m =>
+            !m.title.toLowerCase().includes(pattern)
+          );
+          count += before - day.markers.length;
+        });
+      }
       else if (action.type === 'clear_day') {
         const day = getDay(action.date);
         count += day.blocks.length;
@@ -4287,6 +4462,16 @@ function initEvents() {
   // Step modal
   document.getElementById('save-step-btn').addEventListener('click', saveStepModal);
   document.getElementById('step-title-input').addEventListener('keydown', e => { if(e.key==='Enter') saveStepModal(); });
+
+  // Marker modal
+  document.getElementById('marker-save-btn').addEventListener('click', saveMarker);
+  document.getElementById('marker-title-input').addEventListener('keydown', e => { if(e.key==='Enter') saveMarker(); });
+  document.querySelectorAll('#marker-cat-pills .recur-day-pill').forEach(p => {
+    p.addEventListener('click', () => {
+      document.querySelectorAll('#marker-cat-pills .recur-day-pill').forEach(x => x.classList.remove('active'));
+      p.classList.add('active');
+    });
+  });
 
   // Calendar nav
   document.getElementById('cal-prev').addEventListener('click',()=>{
