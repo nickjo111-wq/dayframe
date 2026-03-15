@@ -15,7 +15,7 @@ function httpsPost(url, headers, body) {
     const req = https.request(options, (res) => {
       let data = '';
       res.on('data', chunk => data += chunk);
-      res.on('end', () => resolve({ status: res.statusCode, body: data }));
+      res.on('end', () => resolve({ status:a raes.statusCode, body: data }));
     });
     req.on('error', reject);
     req.write(body);
@@ -59,13 +59,12 @@ DATA STRUCTURE:
 - start/end: "HH:MM" 24-hour format
 - cat: "habit" | "todo" | "workout" | "kids" | "custom" | "free" | "event"
 - trafficLight: null | "done" | "missed"
-- lists: habit/todo/workout/kids lists with items
-- projects: projects with steps
+- lists: habit/todo/workout/kids lists with items. List IDs are: "habits", "todo", "workout", "kids". Each item can have recurrence: { pattern:"weekly"|"monthly", days:[0-6 where 0=Sun], time:"HH:MM", duration:mins, monthDay:1-31 }
 
-BLOCKS vs MARKERS — this is important:
-- Use BLOCKS for things the user will actually DO at a specific time (gym at 7am, meeting at 2pm, work session)
-- Use MARKERS for things happening ON the day that don't need time-boxing (school closed, bank holiday, Man Utd match day, birthday, reminder)
-- When in doubt: if it needs a start/end time → block. If it's just "on this day" → marker
+BLOCKS vs MARKERS vs RECURRING ITEMS — this is important:
+- Use BLOCKS for one-off things at a specific time (meeting at 2pm today)
+- Use MARKERS for all-day indicators (school closed, bank holiday, match day)
+- Use RECURRING ITEMS for repeating activities (piano every Monday, gym every weekday) — these are added to the list and auto-appear on the grid each week. This is MUCH more efficient than adding individual blocks for each week.
 
 CAPABILITIES:
 You can answer questions about the calendar AND make changes. When making changes, include a JSON actions block in your response.
@@ -74,7 +73,16 @@ ACTIONS FORMAT — include this at the end of your response when making changes:
 \`\`\`actions
 [
   {
-    "type": "add_marker",
+    "type": "add_recurring_item",
+    "listId": "kids",
+    "title": "Jonah's Piano",
+    "recurrence": {
+      "pattern": "weekly",
+      "days": [1],
+      "time": "15:15",
+      "duration": 60
+    }
+  },
     "date": "YYYY-MM-DD",
     "title": "School Closed - Easter Holidays",
     "cat": "kids"
@@ -115,8 +123,10 @@ ACTIONS FORMAT — include this at the end of your response when making changes:
 ]
 \`\`\`
 
-GUIDELINES:
-- Be concise and friendly
+IMPORTANT LIMITS:
+- When adding recurring events, add maximum 8 weeks at a time to avoid response limits
+- Keep actions lists concise — if more than 20 actions needed, do the nearest dates first and tell the user to ask again for more
+- Always complete the actions JSON block fully before ending your response
 - When asked to delete/modify things, confirm what you're about to do before the actions block
 - When listing schedule info, format it clearly
 - Times should always be HH:MM 24-hour format
@@ -126,7 +136,7 @@ GUIDELINES:
 
     const requestBody = JSON.stringify({
       model: 'claude-sonnet-4-5',
-      max_tokens: 2000,
+      max_tokens: 4000,
       system: systemPrompt,
       tools: [{ type: 'web_search_20250305', name: 'web_search' }],
       messages: messages
