@@ -4299,6 +4299,24 @@ function applyActions(actions) {
           count++;
         }
       }
+      else if (action.type === 'add_recurring_item') {
+        const list = APP.data.lists.find(l => l.id === action.listId);
+        if (list) {
+          // Avoid duplicates
+          const exists = list.items.some(i => i.text.toLowerCase() === action.title.toLowerCase());
+          if (!exists) {
+            list.items.push({
+              id: uid(),
+              text: action.title,
+              recurring: true,
+              recurrence: action.recurrence,
+              notes: action.notes || '',
+              links: []
+            });
+            count++;
+          }
+        }
+      }
       else if (action.type === 'add_marker') {
         const added = addMarker(action.date, action.title, action.cat || 'event');
         if (added) count++;
