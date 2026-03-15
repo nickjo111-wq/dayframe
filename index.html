@@ -1341,6 +1341,126 @@
   }
   #sign-in-btn:hover { background:var(--gold-glow); }
 
+  /* ── AI Assistant ───────────────────────────────── */
+  #assistant-btn {
+    padding:6px 14px; background:var(--surface2);
+    border:1px solid var(--border2); border-radius:4px;
+    color:var(--text2); font-family:'Barlow Condensed',sans-serif;
+    font-size:12px; font-weight:600; letter-spacing:0.08em;
+    cursor:pointer; transition:all 0.15s;
+  }
+  #assistant-btn:hover { border-color:var(--gold-dim); color:var(--gold); }
+  #assistant-btn.active { background:var(--gold-glow); border-color:var(--gold-dim); color:var(--gold); }
+
+  #assistant-panel {
+    position:fixed; right:0; top:0; bottom:0; width:380px;
+    background:var(--surface); border-left:1px solid var(--border);
+    display:flex; flex-direction:column; z-index:200;
+    transform:translateX(100%); transition:transform 0.28s cubic-bezier(0.4,0,0.2,1);
+    box-shadow:-4px 0 24px rgba(0,0,0,0.4);
+  }
+  #assistant-panel.open { transform:translateX(0); }
+
+  #assistant-overlay {
+    display:none; position:fixed; inset:0; z-index:199;
+    background:rgba(0,0,0,0.3);
+  }
+  #assistant-overlay.show { display:block; }
+
+  #assistant-header {
+    display:flex; align-items:center; justify-content:space-between;
+    padding:16px 18px; border-bottom:1px solid var(--border);
+    flex-shrink:0; background:var(--surface2);
+  }
+  #assistant-title {
+    font-family:'Playfair Display',serif; font-size:17px;
+    font-weight:600; color:var(--gold); letter-spacing:0.02em;
+  }
+  #assistant-header-actions { display:flex; gap:6px; }
+  #assistant-clear-btn, #assistant-close-btn {
+    background:none; border:none; cursor:pointer;
+    color:var(--text3); font-size:16px; padding:4px 6px;
+    border-radius:4px; transition:all 0.15s; line-height:1;
+  }
+  #assistant-clear-btn:hover, #assistant-close-btn:hover {
+    background:var(--surface3); color:var(--text2);
+  }
+
+  #assistant-messages {
+    flex:1; overflow-y:auto; padding:16px;
+    display:flex; flex-direction:column; gap:12px;
+    scrollbar-width:thin; scrollbar-color:var(--border) transparent;
+  }
+
+  .assistant-msg { display:flex; flex-direction:column; gap:4px; }
+  .assistant-msg.user { align-items:flex-end; }
+  .assistant-msg.assistant { align-items:flex-start; }
+
+  .msg-bubble {
+    max-width:90%; padding:10px 14px;
+    border-radius:12px; font-family:'Barlow',sans-serif;
+    font-size:13px; line-height:1.6; word-wrap:break-word;
+  }
+  .assistant-msg.user .msg-bubble {
+    background:var(--gold); color:#000; border-radius:12px 12px 3px 12px;
+  }
+  .assistant-msg.assistant .msg-bubble {
+    background:var(--surface2); color:var(--text);
+    border:1px solid var(--border); border-radius:12px 12px 12px 3px;
+  }
+  .msg-bubble a { color:var(--gold); }
+  .msg-bubble code {
+    background:var(--surface3); padding:1px 5px;
+    border-radius:3px; font-family:'JetBrains Mono',monospace; font-size:11px;
+  }
+
+  .msg-actions-applied {
+    font-family:'Barlow Condensed',sans-serif; font-size:11px;
+    color:var(--green); letter-spacing:0.06em; padding:4px 8px;
+    background:#1a3d1a; border-radius:4px; display:inline-block;
+    margin-top:4px;
+  }
+
+  .assistant-typing {
+    display:flex; align-items:center; gap:6px;
+    padding:10px 14px; background:var(--surface2);
+    border:1px solid var(--border); border-radius:12px 12px 12px 3px;
+    width:fit-content;
+  }
+  .typing-dot {
+    width:6px; height:6px; border-radius:50%;
+    background:var(--text3); animation:typingBounce 1.2s infinite;
+  }
+  .typing-dot:nth-child(2) { animation-delay:0.2s; }
+  .typing-dot:nth-child(3) { animation-delay:0.4s; }
+  @keyframes typingBounce {
+    0%,60%,100% { transform:translateY(0); opacity:0.4; }
+    30% { transform:translateY(-6px); opacity:1; }
+  }
+
+  #assistant-input-area {
+    display:flex; gap:8px; padding:14px 16px;
+    border-top:1px solid var(--border); flex-shrink:0;
+    background:var(--surface2); align-items:flex-end;
+  }
+  #assistant-input {
+    flex:1; background:var(--surface); border:1px solid var(--border2);
+    border-radius:8px; color:var(--text); font-family:'Barlow',sans-serif;
+    font-size:13px; padding:10px 12px; resize:none; outline:none;
+    line-height:1.5; max-height:120px; overflow-y:auto;
+    transition:border-color 0.15s;
+  }
+  #assistant-input:focus { border-color:var(--gold-dim); }
+  #assistant-send-btn {
+    width:36px; height:36px; border-radius:50%; flex-shrink:0;
+    background:var(--gold); border:none; cursor:pointer;
+    color:#000; font-size:16px; font-weight:700;
+    display:flex; align-items:center; justify-content:center;
+    transition:background 0.15s; align-self:flex-end;
+  }
+  #assistant-send-btn:hover { background:#d4b450; }
+  #assistant-send-btn:disabled { opacity:0.4; cursor:not-allowed; }
+
   /* Desktop: hide mobile-only elements */
   @media (min-width: 769px) {
     #mobile-nav { display: none; }
@@ -1518,6 +1638,7 @@
       <button id="notes-btn">📝 Notes</button>
       <button id="search-btn">🔍 Search</button>
       <button id="ai-import-btn">✦ AI Import</button>
+      <button id="assistant-btn">⬡ Assistant</button>
       <div id="user-indicator" style="display:none">
         <span id="user-email-display"></span>
         <button id="sign-out-btn" title="Sign out">↪</button>
@@ -1985,6 +2106,34 @@
 </div>
 
 <div id="sync-indicator"></div>
+<!-- AI Assistant Panel -->
+<div id="assistant-panel">
+  <div id="assistant-header">
+    <div id="assistant-title">⬡ DayFrame Assistant</div>
+    <div id="assistant-header-actions">
+      <button id="assistant-clear-btn" title="Clear conversation">↺</button>
+      <button id="assistant-close-btn">✕</button>
+    </div>
+  </div>
+  <div id="assistant-messages">
+    <div class="assistant-msg assistant" id="assistant-welcome">
+      <div class="msg-bubble">
+        Hi! I'm your DayFrame assistant. I can read your calendar, answer questions, and make changes for you.<br><br>
+        Try asking:<br>
+        • "What have I got on this week?"<br>
+        • "Add gym at 7am every Monday"<br>
+        • "Delete all Man Utd fixtures"<br>
+        • "Find me a free slot on Wednesday"
+      </div>
+    </div>
+  </div>
+  <div id="assistant-input-area">
+    <textarea id="assistant-input" placeholder="Ask me anything about your calendar…" rows="1"></textarea>
+    <button id="assistant-send-btn">↑</button>
+  </div>
+</div>
+<div id="assistant-overlay"></div>
+
 <!-- Toast -->
 <div id="toast"></div>
 
@@ -3859,6 +4008,249 @@ function confirmAiImport() {
   showToast(`${added} event${added!==1?'s':''} added to your calendar`, 'gold');
 }
 
+// ═══════════════════════════════════════════════════
+//  AI ASSISTANT
+// ═══════════════════════════════════════════════════
+let ASSISTANT_MESSAGES = []; // conversation history
+let ASSISTANT_BUSY     = false;
+
+function openAssistant() {
+  document.getElementById('assistant-panel').classList.add('open');
+  document.getElementById('assistant-overlay').classList.add('show');
+  document.getElementById('assistant-btn').classList.add('active');
+  setTimeout(() => document.getElementById('assistant-input').focus(), 300);
+}
+
+function closeAssistant() {
+  document.getElementById('assistant-panel').classList.remove('open');
+  document.getElementById('assistant-overlay').classList.remove('show');
+  document.getElementById('assistant-btn').classList.remove('active');
+}
+
+function clearAssistant() {
+  ASSISTANT_MESSAGES = [];
+  const msgs = document.getElementById('assistant-messages');
+  msgs.innerHTML = `<div class="assistant-msg assistant">
+    <div class="msg-bubble">Conversation cleared. How can I help?</div>
+  </div>`;
+}
+
+function appendMessage(role, content, actionsApplied) {
+  const msgs = document.getElementById('assistant-messages');
+  const div  = document.createElement('div');
+  div.className = `assistant-msg ${role}`;
+
+  const bubble = document.createElement('div');
+  bubble.className = 'msg-bubble';
+  bubble.innerHTML = formatAssistantText(content);
+  div.appendChild(bubble);
+
+  if (actionsApplied && actionsApplied > 0) {
+    const tag = document.createElement('div');
+    tag.className = 'msg-actions-applied';
+    tag.textContent = `✓ ${actionsApplied} change${actionsApplied !== 1 ? 's' : ''} applied`;
+    div.appendChild(tag);
+  }
+
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+  return div;
+}
+
+function showTyping() {
+  const msgs = document.getElementById('assistant-messages');
+  const div  = document.createElement('div');
+  div.className = 'assistant-msg assistant';
+  div.id = 'typing-indicator';
+  div.innerHTML = `<div class="assistant-typing">
+    <div class="typing-dot"></div>
+    <div class="typing-dot"></div>
+    <div class="typing-dot"></div>
+  </div>`;
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function hideTyping() {
+  document.getElementById('typing-indicator')?.remove();
+}
+
+function formatAssistantText(text) {
+  // Remove actions block from display
+  text = text.replace(/```actions[\s\S]*?```/g, '').trim();
+  // Basic markdown
+  text = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+  text = text.replace(/`(.*?)`/g, '<code>$1</code>');
+  text = text.replace(/\n/g, '<br>');
+  return text;
+}
+
+function parseActions(text) {
+  const match = text.match(/```actions\s*([\s\S]*?)```/);
+  if (!match) return [];
+  try {
+    return JSON.parse(match[1]);
+  } catch(e) {
+    console.error('Failed to parse actions:', e);
+    return [];
+  }
+}
+
+function applyActions(actions) {
+  let count = 0;
+  actions.forEach(action => {
+    try {
+      if (action.type === 'add_block') {
+        const day = getDay(action.date);
+        const block = {
+          id: uid(),
+          title:     action.block.title || 'New Block',
+          start:     action.block.start || '09:00',
+          end:       action.block.end   || '10:00',
+          cat:       action.block.cat   || 'free',
+          notes:     action.block.notes || '',
+          files:     [],
+          completed: false
+        };
+        day.blocks.push(block);
+        count++;
+      }
+      else if (action.type === 'delete_block') {
+        const day = getDay(action.date);
+        const before = day.blocks.length;
+        day.blocks = day.blocks.filter(b => b.id !== action.blockId);
+        count += before - day.blocks.length;
+      }
+      else if (action.type === 'delete_blocks_matching') {
+        const pattern = (action.titleContains || '').toLowerCase();
+        Object.keys(APP.data.days).forEach(ds => {
+          const day = APP.data.days[ds];
+          const before = day.blocks.length;
+          day.blocks = day.blocks.filter(b =>
+            !b.title.toLowerCase().includes(pattern)
+          );
+          count += before - day.blocks.length;
+        });
+      }
+      else if (action.type === 'update_block') {
+        const day = getDay(action.date);
+        const block = day.blocks.find(b => b.id === action.blockId);
+        if (block) {
+          Object.assign(block, action.changes);
+          count++;
+        }
+      }
+      else if (action.type === 'clear_day') {
+        const day = getDay(action.date);
+        count += day.blocks.length;
+        day.blocks = [];
+      }
+      else if (action.type === 'set_day_note') {
+        const day = getDay(action.date);
+        day.notes = action.note;
+        count++;
+      }
+    } catch(e) {
+      console.error('Action error:', action, e);
+    }
+  });
+
+  if (count > 0) {
+    saveData();
+    renderAll();
+  }
+  return count;
+}
+
+async function sendAssistantMessage() {
+  if (ASSISTANT_BUSY) return;
+  const input = document.getElementById('assistant-input');
+  const text  = input.value.trim();
+  if (!text) return;
+
+  input.value = '';
+  input.style.height = 'auto';
+  ASSISTANT_BUSY = true;
+  document.getElementById('assistant-send-btn').disabled = true;
+
+  // Add user message to UI and history
+  appendMessage('user', text);
+  ASSISTANT_MESSAGES.push({ role: 'user', content: text });
+
+  showTyping();
+
+  try {
+    const today = new Date().toISOString().split('T')[0];
+
+    const res = await fetch('/.netlify/functions/assistant', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        messages:     ASSISTANT_MESSAGES,
+        calendarData: APP.data,
+        today
+      })
+    });
+
+    hideTyping();
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || `Error ${res.status}`);
+    }
+
+    const data = await res.json();
+
+    // Extract text from response (may include tool use blocks)
+    const textContent = (data.content || [])
+      .filter(b => b.type === 'text')
+      .map(b => b.text)
+      .join('\n')
+      .trim();
+
+    if (!textContent) throw new Error('No response from assistant');
+
+    // Parse and apply any actions
+    const actions        = parseActions(textContent);
+    const actionsApplied = applyActions(actions);
+
+    // Add to conversation history
+    ASSISTANT_MESSAGES.push({ role: 'assistant', content: textContent });
+
+    // Show in UI
+    appendMessage('assistant', textContent, actionsApplied);
+
+  } catch(err) {
+    hideTyping();
+    appendMessage('assistant', `Sorry, something went wrong: ${err.message}`);
+  }
+
+  ASSISTANT_BUSY = false;
+  document.getElementById('assistant-send-btn').disabled = false;
+  document.getElementById('assistant-input').focus();
+}
+
+function initAssistant() {
+  document.getElementById('assistant-btn').addEventListener('click', openAssistant);
+  document.getElementById('assistant-close-btn').addEventListener('click', closeAssistant);
+  document.getElementById('assistant-overlay').addEventListener('click', closeAssistant);
+  document.getElementById('assistant-clear-btn').addEventListener('click', clearAssistant);
+  document.getElementById('assistant-send-btn').addEventListener('click', sendAssistantMessage);
+
+  const input = document.getElementById('assistant-input');
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendAssistantMessage();
+    }
+  });
+  // Auto-resize textarea
+  input.addEventListener('input', () => {
+    input.style.height = 'auto';
+    input.style.height = Math.min(input.scrollHeight, 120) + 'px';
+  });
+}
+
 function initEvents() {
   // Panel toggle (Lists / Projects)
   document.querySelectorAll('.panel-toggle-btn').forEach(btn => {
@@ -4251,6 +4643,7 @@ function initEvents() {
 document.addEventListener('DOMContentLoaded', ()=>{
   initAuthUI();
   initEvents();
+  initAssistant();
   renderAll();
   initMobileNav();
   initSupabase();
