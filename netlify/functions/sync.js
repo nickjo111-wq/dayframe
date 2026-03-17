@@ -8,13 +8,11 @@ function httpsRequest(method, url, headers, body) {
       hostname: urlObj.hostname,
       path: urlObj.pathname + urlObj.search,
       method,
-      headers: { ...headers },
-      followRedirects: true
+      headers: { ...headers }
     };
     if (body) options.headers['Content-Length'] = Buffer.byteLength(body);
 
     const req = https.request(options, (res) => {
-      // Follow redirects
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
         return httpsRequest(method, res.headers.location, {}, body || null)
           .then(resolve).catch(reject);
@@ -50,14 +48,10 @@ exports.handler = async (event, context) => {
 
     const key    = Buffer.from(email).toString('base64').replace(/[^a-zA-Z0-9]/g, '');
     const token  = process.env.NETLIFY_BLOBS_TOKEN;
-    const siteID = process.env.SITE_ID || 'e04a683b-fa45-4469-88b0-2dc93729f96a';
+    const siteID = 'e04a683b-fa45-4469-88b0-2dc93729f96a';
 
-    // Get actual site ID from context if available
-    const actualSiteID = context?.clientContext?.custom?.netlify
-      ? JSON.parse(Buffer.from(context.clientContext.custom.netlify, 'base64').toString()).site_id
-      : siteID;
-
-    const storeURL = `https://api.netlify.com/api/v1/blobs/${actualSiteID}/dayframe/${key}`;
+    // Try both URL formats
+    const storeURL = `https://api.netlify.com/api/v1/blobs/${siteID}/${key}`;
     const authHeaders = {
       'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json'
@@ -69,13 +63,14 @@ exports.handler = async (event, context) => {
         return { statusCode: 200, headers: cors, body: JSON.stringify({ data: null }) };
       }
       if (res.status !== 200) {
-        return { statusCode: 200, headers: cors, body: JSON.stringify({ data: null, debug: res.status }) };
+        // Return debug info so we can see what's wrong
+        return { statusCode: 200, headers: cors, body: JSON.stringify({ data: null, debug: res.status, msg: res.body.slice(0, 200) }) };
       }
       try {
         const data = JSON.parse(res.body);
         return { statusCode: 200, headers: cors, body: JSON.stringify({ data }) };
       } catch(e) {
-        return { statusCode: 200, headers: cors, body: JSON.stringify({ data: null }) };
+        return { statusCode: 200, headers: cors, body: JSON.stringify({ data: null, parseError: true }) };
       }
     }
 
@@ -85,17 +80,13 @@ exports.handler = async (event, context) => {
       return {
         statusCode: 200,
         headers: cors,
-        body: JSON.stringify({ ok: true, status: res.status })
+        body: JSON.stringify({ ok: res.status === 200 || res.status === 204, status: res.status, msg: res.body.slice(0, 100) })
       };
     }
 
     return { statusCode: 400, headers: cors, body: JSON.stringify({ error: 'Unknown action' }) };
 
   } catch (err) {
-    return {
-      statusCode: 500,
-      headers: cors,
-      body: JSON.stringify({ error: err.message })
-    };
+    return { statusCode: 500, headers: cors, body: JSON.stringify({ error: err.message }) };
   }
 };
