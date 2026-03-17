@@ -20,7 +20,12 @@ exports.handler = async (event) => {
     }
 
     const key   = Buffer.from(email).toString('base64').replace(/[^a-zA-Z0-9]/g, '');
-    const store = getStore({ name: 'dayframe-users', consistency: 'strong' });
+    const store = getStore({
+      name: 'dayframe-users',
+      consistency: 'strong',
+      siteID: 'e04a683b-fa45-4469-88b0-2dc93729f96a',
+      token: process.env.NETLIFY_BLOBS_TOKEN
+    });
 
     if (body.action === 'load') {
       const data = await store.get(key, { type: 'json' }).catch(() => null);
